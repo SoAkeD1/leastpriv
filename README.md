@@ -4,6 +4,8 @@
 
 Built for Tech Zephyr 4.0 (Track 5: Cybersecurity — *Autonomous Cloud IAM Least-Privilege Mitigator*).
 
+**Live demo:** [leastpriv-two.vercel.app](https://leastpriv-two.vercel.app) — sign up with any email, then run one of the three reference scenarios from the Agent Console. (Backend is on a free-tier instance that sleeps when idle; the first request after a while can take 30–50s to wake it up.)
+
 ## The problem
 
 IAM policies only ever grow. Someone adds a wildcard at 2am to unblock a deploy, and it stays for four years. Nobody removes permissions afterward, because nobody can prove the removal is safe — so blast radius compounds silently until a stolen credential inherits everything nobody bothered to revoke.
