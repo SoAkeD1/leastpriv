@@ -42,6 +42,18 @@ behind the same tool interface, if that mode is added later.)
 
 Interactive API docs: `http://localhost:8000/docs`
 
+## Deploying (Render)
+
+The repo root has a `render.yaml` blueprint. On [render.com](https://render.com):
+**New +** → **Blueprint** → connect the `leastpriv` GitHub repo → Render
+reads `render.yaml` and creates a Python web service rooted at `backend/`
+with `JWT_SECRET` auto-generated. Note the resulting URL
+(`https://<name>.onrender.com`) — the frontend needs it as `VITE_API_URL`.
+
+CORS already allows any `*.vercel.app` origin by default, so a Vercel
+frontend deploy needs no backend config change. Set `ALLOWED_ORIGINS`
+(comma-separated) only if you're serving the frontend from somewhere else.
+
 ## Authentication
 
 Real accounts: `POST /api/auth/signup` bcrypt-hashes the password and stores

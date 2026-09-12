@@ -60,6 +60,14 @@ Open `http://localhost:5173`, go to **Agent Console**, and run one of the three 
 
 Interactive API docs: `http://localhost:8000/docs`.
 
+## Deploying
+
+Backend → [Render](backend/README.md#deploying-render) (a `render.yaml`
+blueprint at the repo root does the setup). Frontend → [Vercel](frontend/README.md#deploying-vercel)
+(root directory `frontend`, one env var pointing at the backend URL). No
+other infrastructure is required — the agent's state is in-memory and its
+data is SQLite, both fine for a single free-tier instance.
+
 ## Authentication
 
 Real accounts, not a demo login: signup and sign-in hit the backend, passwords

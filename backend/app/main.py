@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +22,15 @@ from .runs import Run, manager
 app = FastAPI(title="LeastPriv Agent API", version="0.1.0")
 init_db()
 
+_extra_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", *_extra_origins],
+    # Vercel gives every deploy (prod + each preview) its own subdomain, so a
+    # fixed origin list would break on the next preview URL -- match the
+    # whole vercel.app family instead of chasing individual deploy URLs.
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
