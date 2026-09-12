@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
 
 const NAV = [
   { to: '/app/dashboard', label: 'Dashboard' },
@@ -10,8 +12,22 @@ const NAV = [
   { to: '/app/settings', label: 'Settings' },
 ]
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || 'U'
+}
+
 export default function AppLayout() {
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  function signOut() {
+    // ProtectedRoute redirects to /signin as soon as `user` clears — no
+    // separate navigate() here, since racing one against the other just
+    // makes the destination nondeterministic.
+    logout()
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '216px minmax(0,1fr)', background: 'var(--canvas)' }}>
@@ -55,19 +71,35 @@ export default function AppLayout() {
               <span className="mono" style={{ fontSize: 12, color: 'var(--ink)' }}>sandbox-prod-mirror</span>
               <span style={{ color: 'var(--subtle)', fontSize: 10 }}>▾</span>
             </div>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>acct 4471 · us-east-1</span>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>workspace {user?.workspace ?? '—'}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ position: 'relative', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>
-              ◔<span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: '50%', background: 'var(--broken)', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', paddingLeft: 14, borderLeft: '1px solid var(--border-soft)' }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--diff))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff' }}>DK</div>
-              <div style={{ lineHeight: 1.25 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 500 }}>Dana Kimura</div>
-                <div style={{ fontSize: 10.5, color: 'var(--subtle)' }}>Security · Admin</div>
+            <div style={{ position: 'relative' }}>
+              <div
+                onClick={() => setMenuOpen((v) => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', paddingLeft: 14, borderLeft: '1px solid var(--border-soft)' }}
+              >
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--diff))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff' }}>
+                  {initials(user?.name ?? 'User')}
+                </div>
+                <div style={{ lineHeight: 1.25 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 500 }}>{user?.name ?? 'Loading…'}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--subtle)' }}>{user?.email ?? ''}</div>
+                </div>
+                <span style={{ color: 'var(--subtle)', fontSize: 10 }}>▾</span>
               </div>
-              <span style={{ color: 'var(--subtle)', fontSize: 10 }}>▾</span>
+              {menuOpen && (
+                <>
+                  <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 29 }} />
+                  <div className="card" style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', minWidth: 180, zIndex: 30, overflow: 'hidden' }}>
+                    <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>{user?.email}</div>
+                    <div
+                      onClick={signOut}
+                      style={{ padding: '10px 14px', fontSize: 13, color: 'var(--broken)', cursor: 'pointer' }}
+                    >Sign out</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

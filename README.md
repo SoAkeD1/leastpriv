@@ -60,6 +60,13 @@ Open `http://localhost:5173`, go to **Agent Console**, and run one of the three 
 
 Interactive API docs: `http://localhost:8000/docs`.
 
+## Authentication
+
+Real accounts, not a demo login: signup and sign-in hit the backend, passwords
+are bcrypt-hashed into a local SQLite file, sessions are signed JWTs, every
+API route requires one, and runs are scoped to the user that started them.
+See [`backend/README.md`](backend/README.md#authentication) for details.
+
 ## Evaluation & robustness
 
 - **Objective verifier**: `simulate()` is a deterministic replay against real traffic, not an LLM grading its own output. Convergence means 0 denials across the full replay window, full stop.

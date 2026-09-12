@@ -136,20 +136,54 @@ export type ApprovalDecisionInput = {
   scoped_resource?: string
 }
 
+export interface UserOut {
+  id: string
+  email: string
+  name: string
+  workspace: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  user: UserOut
+}
+
+export interface LoginInput {
+  email: string
+  password: string
+}
+
+export interface SignupInput {
+  email: string
+  password: string
+  name: string
+  workspace?: string
+}
+
+let authToken: string | null = null
+
+export function setAuthToken(token: string | null) {
+  authToken = token
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  })
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (authToken) headers.Authorization = `Bearer ${authToken}`
+  const res = await fetch(`${API_BASE}${path}`, { headers, ...init })
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`${res.status} ${res.statusText}: ${text}`)
+    let detail = ""
+    try { detail = (await res.json()).detail ?? "" } catch { /* not JSON */ }
+    throw new Error(detail || `${res.status} ${res.statusText}`)
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
 export const api = {
+  signup: (input: SignupInput) => request<TokenResponse>("/api/auth/signup", { method: "POST", body: JSON.stringify(input) }),
+  login: (input: LoginInput) => request<TokenResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(input) }),
+  me: () => request<UserOut>("/api/auth/me"),
   environments: () => request<Environment[]>("/api/environments"),
   roles: (environmentId: string) => request<Role[]>(`/api/environments/${environmentId}/roles`),
   role: (roleId: string) => request<Role>(`/api/roles/${roleId}`),
@@ -164,5 +198,5 @@ export const api = {
       body: JSON.stringify(decision),
     }),
   report: (id: string) => request<RunReport>(`/api/runs/${id}/report`),
-  eventSource: (id: string) => new EventSource(`${API_BASE}/api/runs/${id}/events`),
+  eventSource: (id: string) => new EventSource(`${API_BASE}/api/runs/${id}/events?token=${encodeURIComponent(authToken ?? "")}`),
 }

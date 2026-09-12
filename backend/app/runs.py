@@ -16,6 +16,7 @@ from .models import (
 class Run:
     id: str
     config: RunConfig
+    owner_id: str = ""
     status: RunStatus = "running"
     iteration: int = 0
     events: list[AgentEvent] = field(default_factory=list)
@@ -52,8 +53,8 @@ class RunManager:
     def __init__(self) -> None:
         self.runs: dict[str, Run] = {}
 
-    def create(self, config: RunConfig) -> Run:
-        run = Run(id=uuid.uuid4().hex[:8], config=config)
+    def create(self, config: RunConfig, owner_id: str = "") -> Run:
+        run = Run(id=uuid.uuid4().hex[:8], config=config, owner_id=owner_id)
         self.runs[run.id] = run
         return run
 

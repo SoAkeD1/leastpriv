@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from . import simulator
 from .agent import run_heuristic_agent
+from .auth import (
+    LoginRequest, SignupRequest, TokenResponse, UserOut,
+    get_current_user, init_db, login as auth_login, signup as auth_signup,
+)
 from .models import (
     ApprovalDecision, ApprovalRequest, Environment, Role, RunConfig, RunReport, RunSummary,
     ServiceHealthOut,
@@ -15,6 +19,7 @@ from .models import (
 from .runs import Run, manager
 
 app = FastAPI(title="LeastPriv Agent API", version="0.1.0")
+init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +27,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.post("/api/auth/signup", response_model=TokenResponse)
+def signup(req: SignupRequest) -> TokenResponse:
+    return auth_signup(req)
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login(req: LoginRequest) -> TokenResponse:
+    return auth_login(req)
+
+
+@app.get("/api/auth/me", response_model=UserOut)
+def me(user: UserOut = Depends(get_current_user)) -> UserOut:
+    return user
 
 
 def summarize(run: Run) -> RunSummary:
@@ -49,12 +69,12 @@ def summarize(run: Run) -> RunSummary:
 
 
 @app.get("/api/environments", response_model=list[Environment])
-def get_environments() -> list[Environment]:
+def get_environments(user: UserOut = Depends(get_current_user)) -> list[Environment]:
     return simulator.list_environments()
 
 
 @app.get("/api/environments/{environment_id}/roles", response_model=list[Role])
-def get_roles(environment_id: str) -> list[Role]:
+def get_roles(environment_id: str, user: UserOut = Depends(get_current_user)) -> list[Role]:
     roles = simulator.list_roles(environment_id)
     if not roles:
         raise HTTPException(404, "environment not found or has no roles")
@@ -62,7 +82,7 @@ def get_roles(environment_id: str) -> list[Role]:
 
 
 @app.get("/api/roles/{role_id}", response_model=Role)
-def get_role(role_id: str) -> Role:
+def get_role(role_id: str, user: UserOut = Depends(get_current_user)) -> Role:
     try:
         return simulator.get_role(role_id)
     except KeyError:
@@ -70,21 +90,21 @@ def get_role(role_id: str) -> Role:
 
 
 @app.post("/api/runs", response_model=RunSummary)
-async def create_run(config: RunConfig) -> RunSummary:
+async def create_run(config: RunConfig, user: UserOut = Depends(get_current_user)) -> RunSummary:
     if config.role_id not in [r.id for e in simulator.list_environments() for r in simulator.list_roles(e.id)]:
         raise HTTPException(404, "role not found")
-    run = manager.create(config)
+    run = manager.create(config, owner_id=user.id)
     run.task = asyncio.create_task(run_heuristic_agent(run))
     return summarize(run)
 
 
 @app.get("/api/runs", response_model=list[RunSummary])
-def list_runs() -> list[RunSummary]:
-    return [summarize(r) for r in manager.list()]
+def list_runs(user: UserOut = Depends(get_current_user)) -> list[RunSummary]:
+    return [summarize(r) for r in manager.list() if r.owner_id == user.id]
 
 
 @app.get("/api/runs/{run_id}", response_model=RunSummary)
-def get_run(run_id: str) -> RunSummary:
+def get_run(run_id: str, user: UserOut = Depends(get_current_user)) -> RunSummary:
     run = manager.get(run_id)
     if not run:
         raise HTTPException(404, "run not found")
@@ -92,7 +112,7 @@ def get_run(run_id: str) -> RunSummary:
 
 
 @app.get("/api/runs/{run_id}/approval", response_model=ApprovalRequest | None)
-def get_pending_approval(run_id: str) -> ApprovalRequest | None:
+def get_pending_approval(run_id: str, user: UserOut = Depends(get_current_user)) -> ApprovalRequest | None:
     run = manager.get(run_id)
     if not run:
         raise HTTPException(404, "run not found")
@@ -100,7 +120,7 @@ def get_pending_approval(run_id: str) -> ApprovalRequest | None:
 
 
 @app.post("/api/runs/{run_id}/approval")
-def post_approval(run_id: str, decision: ApprovalDecision) -> dict:
+def post_approval(run_id: str, decision: ApprovalDecision, user: UserOut = Depends(get_current_user)) -> dict:
     run = manager.get(run_id)
     if not run:
         raise HTTPException(404, "run not found")
@@ -111,7 +131,7 @@ def post_approval(run_id: str, decision: ApprovalDecision) -> dict:
 
 
 @app.get("/api/runs/{run_id}/report", response_model=RunReport)
-def get_report(run_id: str) -> RunReport:
+def get_report(run_id: str, user: UserOut = Depends(get_current_user)) -> RunReport:
     run = manager.get(run_id)
     if not run:
         raise HTTPException(404, "run not found")
@@ -137,7 +157,7 @@ def get_report(run_id: str) -> RunReport:
 
 
 @app.get("/api/runs/{run_id}/events")
-async def stream_events(run_id: str):
+async def stream_events(run_id: str, user: UserOut = Depends(get_current_user)):
     run = manager.get(run_id)
     if not run:
         raise HTTPException(404, "run not found")

@@ -42,10 +42,25 @@ behind the same tool interface, if that mode is added later.)
 
 Interactive API docs: `http://localhost:8000/docs`
 
+## Authentication
+
+Real accounts: `POST /api/auth/signup` bcrypt-hashes the password and stores
+the user in a local SQLite file (`leastpriv.db`, created on first run,
+gitignored); `POST /api/auth/login` verifies it and both return a signed JWT.
+Every other `/api/*` route requires that JWT (`Authorization: Bearer <token>`,
+or a `?token=` query param for the SSE endpoint, since `EventSource` can't
+set headers) via the `get_current_user` dependency — there is no
+unauthenticated path to the agent. Runs are scoped to the user that started
+them; `GET /api/runs` only ever returns your own.
+
+Set `JWT_SECRET` in `.env` for anything beyond local demo use — see
+`.env.example`.
+
 ## Architecture
 
 ```
 app/
+  auth.py        signup/login, bcrypt hashing, JWT issuing and verification
   seed_data.py   synthetic cloud: roles, policies, and two independent
                  traffic logs (CloudTrail-visible vs. ground-truth)
   simulator.py   the sandboxed environment: policy matching, log queries,
@@ -58,17 +73,22 @@ app/
 ## Try the three demo scenarios
 
 ```bash
+# 0. Create an account and grab a token (every /api/* route needs one)
+TOKEN=$(curl -s -X POST localhost:8000/api/auth/signup -H "Content-Type: application/json" \
+  -d '{"email":"dana@acme.io","password":"hunter2hunter2","name":"Dana Kimura"}' | python -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+AUTH=(-H "Authorization: Bearer $TOKEN")
+
 # 1. Converges after a breakage-and-repair cycle (the flagship story)
-curl -X POST localhost:8000/api/runs -H "Content-Type: application/json" \
+curl -X POST localhost:8000/api/runs "${AUTH[@]}" -H "Content-Type: application/json" \
   -d '{"environment_id":"sandbox-prod-mirror","role_id":"checkout-svc-role","require_approval":false}'
 
 # 2. Pauses for human approval on high-risk removals
-curl -X POST localhost:8000/api/runs -H "Content-Type: application/json" \
+curl -X POST localhost:8000/api/runs "${AUTH[@]}" -H "Content-Type: application/json" \
   -d '{"environment_id":"sandbox-prod-mirror","role_id":"ci-deploy-role","require_approval":true}'
 # then: GET /api/runs/{id}/approval, POST /api/runs/{id}/approval {"decision":"approve"}
 
 # 3. Recognizes an unresolvable dependency and stops cleanly, no infinite loop
-curl -X POST localhost:8000/api/runs -H "Content-Type: application/json" \
+curl -X POST localhost:8000/api/runs "${AUTH[@]}" -H "Content-Type: application/json" \
   -d '{"environment_id":"sandbox-prod-mirror","role_id":"data-lake-admin","require_approval":false,"max_iterations":4}'
 ```
 
@@ -79,6 +99,9 @@ Read the final result: `GET /api/runs/{id}/report`.
 
 | Method | Path | Purpose |
 |---|---|---|
+| POST | `/api/auth/signup` | Create an account, returns a JWT |
+| POST | `/api/auth/login` | Verify credentials, returns a JWT |
+| GET | `/api/auth/me` | Current user (requires a token) |
 | GET | `/api/environments` | List sandbox environments |
 | GET | `/api/environments/{env}/roles` | Roles in an environment, with permission tags |
 | POST | `/api/runs` | Start a new remediation run |

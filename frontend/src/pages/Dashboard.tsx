@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type RunStatus, type RunSummary } from '../lib/api'
+import { useAuth } from '../lib/auth'
 
 const STATUS_CLASS: Record<RunStatus, string> = {
   running: 'pill-checking',
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<RunStatus, string> = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -57,7 +59,7 @@ export default function Dashboard() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 22 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 5 }}>Dashboard</h1>
-          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Workspace acme-platform · sandbox-prod-mirror · {runs.length} run(s) this session</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Workspace {user?.workspace ?? '—'} · sandbox-prod-mirror · {runs.length} run(s) this session</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/app/new-run')}>New Run</button>
       </div>

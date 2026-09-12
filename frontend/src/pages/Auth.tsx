@@ -1,19 +1,43 @@
-import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { TopBanner } from '../components/TopBanner'
+import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 
 export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { login, signup } = useAuth()
   const { fire } = useToast()
-  const [params] = useSearchParams()
-  const [authError, setAuthError] = useState(params.get('error') === '1')
   const isLogin = mode === 'login'
 
-  function submit() {
-    fire('success', 'Signed in', 'Workspace acme-platform · 4 environments synced')
-    navigate('/app')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [workspace, setWorkspace] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname || '/app/dashboard'
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      if (isLogin) {
+        await login({ email, password })
+      } else {
+        await signup({ email, password, name, workspace: workspace || undefined })
+      }
+      fire('success', isLogin ? 'Signed in' : 'Workspace created', email)
+      navigate(from, { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -23,7 +47,7 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '40px 48px', minWidth: 0 }}>
           <Logo />
 
-          <div style={{ maxWidth: 400, width: '100%', margin: '0 auto', padding: '32px 0' }}>
+          <form onSubmit={submit} style={{ maxWidth: 400, width: '100%', margin: '0 auto', padding: '32px 0' }}>
             <h1 style={{ fontSize: 26, letterSpacing: '-0.025em', fontWeight: 600, marginBottom: 8 }}>
               {isLogin ? 'Sign in to LeastPriv' : 'Create your workspace'}
             </h1>
@@ -33,68 +57,53 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
                 : 'Start with a sandbox mirror. Connect a live account whenever you\'re ready.'}
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
-              <button className="btn btn-secondary" style={{ width: '100%' }}>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>G</span>Google
-              </button>
-              <button className="btn btn-secondary" style={{ width: '100%' }}>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>⌥</span>GitHub
-              </button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
-              <div className="divider-h" style={{ flex: 1 }} />
-              <span className="mono" style={{ fontSize: 10, color: 'var(--faint)', letterSpacing: '.1em' }}>OR</span>
-              <div className="divider-h" style={{ flex: 1 }} />
-            </div>
-
-            {authError && (
+            {error && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid rgb(var(--broken-rgb) / .40)', background: 'rgb(var(--broken-rgb) / .08)', borderRadius: 10, padding: '11px 13px', marginBottom: 16 }}>
                 <span style={{ color: 'var(--broken)', fontSize: 12, lineHeight: 1.4 }}>✕</span>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--broken)' }}>Invalid credentials</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>Email or password is incorrect. 2 attempts remaining before a 15-minute lockout.</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--broken)' }}>{isLogin ? 'Sign-in failed' : 'Could not create account'}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>{error}</div>
                 </div>
               </div>
             )}
 
             {!isLogin && (
-              <div style={{ marginBottom: 14 }}>
-                <label className="field-label">Workspace name</label>
-                <input className="input" defaultValue="acme-platform" />
-              </div>
+              <>
+                <div style={{ marginBottom: 14 }}>
+                  <label className="field-label">Your name</label>
+                  <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Dana Kimura" />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label className="field-label">Workspace name</label>
+                  <input className="input" value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="acme-platform" />
+                </div>
+              </>
             )}
 
             <div style={{ marginBottom: 14 }}>
               <label className="field-label">Work email</label>
-              <input className="input" defaultValue="dana@acme.io" />
+              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dana@acme.io" autoComplete="email" />
             </div>
             <div style={{ marginBottom: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label className="field-label" style={{ margin: 0 }}>Password</label>
-                {isLogin && <span style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}>Forgot password?</span>}
-              </div>
-              <input className="input mono" type="password" defaultValue="hunter2hunter2" />
+              <label className="field-label">Password</label>
+              <input className="input mono" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete={isLogin ? 'current-password' : 'new-password'} />
+              {!isLogin && <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 5 }}>At least 8 characters.</div>}
             </div>
 
-            <button className="btn btn-primary" style={{ width: '100%', marginBottom: 12 }} onClick={submit}>
-              {isLogin ? 'Sign in' : 'Create workspace'}
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginBottom: 12 }} disabled={submitting}>
+              {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create workspace'}
             </button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 12.5, color: 'var(--subtle)' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--subtle)' }}>
               {isLogin ? (
                 <span>No account? <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/signup')}>Create one</span></span>
               ) : (
                 <span>Already have one? <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/signin')}>Sign in</span></span>
               )}
-              <span
-                className="mono"
-                style={{ fontSize: 10.5, color: 'var(--faint)', cursor: 'pointer', border: '1px dashed var(--border)', padding: '3px 6px', borderRadius: 8 }}
-                onClick={() => setAuthError(true)}
-              >demo: error state</span>
             </div>
-          </div>
+          </form>
 
-          <div className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>SOC 2 Type II · SSO/SAML on Enterprise · no write access without approval</div>
+          <div className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>Passwords are hashed with bcrypt · sessions are JWT, 7-day expiry</div>
         </div>
 
         <div style={{ position: 'relative', overflow: 'hidden', background: 'var(--surface)', borderLeft: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, minWidth: 0 }}>

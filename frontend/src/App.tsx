@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Landing from './pages/Landing'
 import Auth from './pages/Auth'
 import AppLayout from './pages/AppLayout'
@@ -9,6 +10,16 @@ import Console from './pages/Console'
 import Report from './pages/Report'
 import History from './pages/History'
 import Settings from './pages/Settings'
+import { useAuth } from './lib/auth'
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) return null
+  if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
+  return <>{children}</>
+}
 
 export default function App() {
   return (
@@ -16,7 +27,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/signin" element={<Auth mode="login" />} />
       <Route path="/signup" element={<Auth mode="signup" />} />
-      <Route path="/app" element={<AppLayout />}>
+      <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="environments" element={<Environments />} />
